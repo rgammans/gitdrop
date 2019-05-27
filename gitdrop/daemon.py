@@ -31,13 +31,10 @@ class Daemon:
     def run(self,):
         asyncio.run(self.async_main())
         self.iwatch = None
-        print ("started")
 
     def stop(self,):
         if self.finished:
             self.finished.set_result(True)
-
-        print ("stop")
 
 
     async def local_watch(self,):pass
@@ -48,6 +45,6 @@ class Daemon:
         remote_watcher = asyncio.create_task(self.remote_watch())
         local_watcher = asyncio.create_task(self.local_watch())
         await self.finished
-        
+
 
 pass

@@ -82,6 +82,7 @@ class TestDaemonClass(unittest.TestCase):
         finally:
             del git.cmd.Git.pull
 
+
     def test_daemon_starts_an_inotify_watcher_on_the_directory(self,):
         g = git.cmd.Git(self.tdir)
         g.init()
@@ -91,6 +92,7 @@ class TestDaemonClass(unittest.TestCase):
         un.assert_called_once()
 
 
+   
     @unittest.skip('nyi')
     def test_triggers_a_fetch_from_remote_after_30secs_if_no_acrtions(self,):
         self.fail()
@@ -146,10 +148,21 @@ class TestDaemon_istance_methods(unittest.TestCase):
     def test_async_main_queues_the_remote_watch_co_routine(self,):
         mainloop = unittest.mock.MagicMock()
         with unittest.mock.patch('asyncio.create_task', return_value="branch_foo") as un ,\
-             unittest.mock.patch.object(self.out, 'remote_watch' ,return_value=mainloop) as ml:
-            self.out.async_main().next()
+             unittest.mock.patch.object(self.out, 'remote_watch' ,return_value=mainloop) ,\
+             unittest.mock.patch.object(self.out, 'local_watch' ,return_value=None):
+             self.out.async_main().send(None)
 
-        un.assert_called_once_with(mainloop)
+        un.assert_any_call(mainloop)
+
+
+    def test_async_main_queues_the_local_watch_co_routine(self,):
+        mainloop = unittest.mock.MagicMock()
+        with unittest.mock.patch('asyncio.create_task', return_value="branch_foo") as un ,\
+             unittest.mock.patch.object(self.out, 'remote_watch' ,return_value=None) ,\
+             unittest.mock.patch.object(self.out, 'local_watch' ,return_value=mainloop):
+             self.out.async_main().send(None)
+
+        un.assert_any_call(mainloop)
 
 
 
