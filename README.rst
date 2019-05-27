@@ -4,6 +4,15 @@ GitDrop
 Tasty sweety git goodness, Or filesharing made with with git.
 
 
+TL;DR - It doesn't work
+-----------------------
+
+On some linuxes (notably Debain and Ubuntu) the number of user
+watches is heavily restricted. To fix that run:
+
+` sudo /sbin/sysctl fs.inotify.max_user_watches=524288 `
+
+
 Aim
 ---
 
