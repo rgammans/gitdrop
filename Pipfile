@@ -8,6 +8,7 @@ verify_ssl = true
 [packages]
 gitpython = "*"
 inotify = "*"
+username = "*"
 
 [requires]
 python_version = "3.7"
