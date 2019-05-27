@@ -1,0 +1,7 @@
+.*.sw*
+*/__pycache__/*
+*.bak
+*.orig
+*~
+.tox/*
+
