@@ -4,6 +4,8 @@ import username
 import inotify.adapters
 import asyncio
 
+from . import inotify as gdi
+
 class Daemon:
     def __init__(self, path, remote = None , branch = None , **kwargs ):
         self.remote = remote
@@ -37,8 +39,14 @@ class Daemon:
             self.finished.set_result(True)
 
 
-    async def local_watch(self,):pass
+    async def local_watch(self,):
+        self.run_inotify(asyncio.get_event_loop())
+
     async def remote_watch(self,):pass
+
+    def run_inotify(self,loop):
+        thread = gdi.WatchThread(loop)
+        thread.run()
 
     async def async_main(self,):
         self.finished = asyncio.Future()

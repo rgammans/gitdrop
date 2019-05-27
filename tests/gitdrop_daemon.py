@@ -165,6 +165,29 @@ class TestDaemon_istance_methods(unittest.TestCase):
         un.assert_any_call(mainloop)
 
 
+    def test_localwatch_launches_a_thread_to_listen_for_inotify_changes(self,):
+        ## I reconsidered inotify for a async looking at aionotify and butter
+        #  but they didn't seem as well maintained so I decided to take
+        # sub trhread appraoch. This means local_watch is a async function
+        # which launches a thread; whcih pokes tasks into the loop.
+        with unittest.mock.patch('asyncio.get_event_loop',
+                                 return_value=unittest.mock.sentinel.LOOP) ,\
+             unittest.mock.patch.object(self.out, 'run_inotify' ,return_value=None
+                                       ) as thread_starter, \
+             self.assertRaises(StopIteration):
+                self.out.local_watch().send(None)
+
+        thread_starter.assert_called_once_with(unittest.mock.sentinel.LOOP)
+
+
+    def test_run_inotify_creates_a_thread_and_runds_it(self):
+        loop = unittest.mock.sentinel.LOOP_x
+        with unittest.mock.patch('gitdrop.inotify.WatchThread') as thread_obj_create:
+            self.out.run_inotify(loop)
+
+        thread_obj_create.assert_called_once_with(loop)
+        thread_obj_create.return_value.run.assert_called_once()
+
 
 class TestDaemonClass_satic_class_methods(unittest.TestCase):
     """ This si sort of a test for randomise; so is as yet unimplemented"""
