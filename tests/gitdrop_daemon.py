@@ -112,7 +112,7 @@ class TestDaemonClass(unittest.TestCase):
         self.fail()
 
 
-class TestDaemon_istance_methods(unittest.TestCase):
+class TestDaemon_instance_methods(unittest.TestCase):
     def setUp(self,):
         self.tdir_cntxt = tempfile.TemporaryDirectory()
         tdir =self.tdir_cntxt.__enter__()
