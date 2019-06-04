@@ -13,13 +13,13 @@ class Daemon:
         if not os.path.exists(os.path.join(path, '.git')):
             raise RuntimeError(path +" doesn not exist")
 
-        self.g = git.cmd.Git(path)
-        status = (self.g.status().split("\n"))[0]
+        self.gitbackend = git.cmd.Git(path)
+        status = (self.gitbackend.status().split("\n"))[0]
         if "detached" in  status:
-            self.g.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
+            self.gitbackend.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
 
         if self.remote:
-            self.g.pull([self.remote,self.rembranch])
+            self.gitbackend.pull([self.remote,self.rembranch])
 
         self.iwatch = inotify.adapters.InotifyTree(path)
         self.finished= None
@@ -34,6 +34,11 @@ class Daemon:
         asyncio.run(self.async_main())
         self.iwatch = None
 
+
+    @property
+    def is_running(self,):
+        return not (self.finished and self.finished.done())
+
     def stop(self,):
         if self.finished:
             self.finished.set_result(True)
@@ -45,8 +50,7 @@ class Daemon:
     async def remote_watch(self,):pass
 
     def run_inotify(self,loop):
-        thread = gdi.WatchThread(loop)
-        thread.run()
+        loop.create_task(gdi.action_loop(self))
 
     async def async_main(self,):
         self.finished = asyncio.Future()

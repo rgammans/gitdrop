@@ -124,11 +124,15 @@ class TestDaemon_instance_methods(unittest.TestCase):
         g.add(["a"])
         g.commit(["-m","Add a"])
         self.out = mut.Daemon(tdir)
+        self.loop =None
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
 
     def tearDown(self,):
         self.out.stop()
         self.tdir_cntxt.__exit__(None,None,None)
-
+        if self.loop:
+            self.loop.close()
 
     def test_run_with_no_asyncio_event_loop_starts_an_event_loop(self,):
         mainloop = unittest.mock.MagicMock()
@@ -145,6 +149,8 @@ class TestDaemon_instance_methods(unittest.TestCase):
 
         un.assert_called_once_with(mainloop)
 
+
+    #@unittest.skip("")
     def test_async_main_queues_the_remote_watch_co_routine(self,):
         mainloop = unittest.mock.MagicMock()
         with unittest.mock.patch('asyncio.create_task', return_value="branch_foo") as un ,\
@@ -156,13 +162,14 @@ class TestDaemon_instance_methods(unittest.TestCase):
 
 
     def test_async_main_queues_the_local_watch_co_routine(self,):
-        mainloop = unittest.mock.MagicMock()
+        localloop = unittest.mock.MagicMock()
         with unittest.mock.patch('asyncio.create_task', return_value="branch_foo") as un ,\
-             unittest.mock.patch.object(self.out, 'remote_watch' ,return_value=None) ,\
-             unittest.mock.patch.object(self.out, 'local_watch' ,return_value=mainloop):
-             self.out.async_main().send(None)
+             unittest.mock.patch.object(self.out, 'remote_watch' , return_value=None) ,\
+             unittest.mock.patch.object(self.out, 'local_watch' ,return_value=localloop):
 
-        un.assert_any_call(mainloop)
+                self.out.async_main().send(None)
+
+        un.assert_any_call(localloop)
 
 
     def test_localwatch_launches_a_thread_to_listen_for_inotify_changes(self,):
@@ -173,20 +180,27 @@ class TestDaemon_instance_methods(unittest.TestCase):
         with unittest.mock.patch('asyncio.get_event_loop',
                                  return_value=unittest.mock.sentinel.LOOP) ,\
              unittest.mock.patch.object(self.out, 'run_inotify' ,return_value=None
-                                       ) as thread_starter, \
-             self.assertRaises(StopIteration):
-                self.out.local_watch().send(None)
+                                       ) as thread_starter:
+            #, \ self.assertRaises(StopIteration):
+                asyncio.run(self.out.local_watch(), debug = True)
 
         thread_starter.assert_called_once_with(unittest.mock.sentinel.LOOP)
 
 
-    def test_run_inotify_creates_a_thread_and_runds_it(self):
-        loop = unittest.mock.sentinel.LOOP_x
-        with unittest.mock.patch('gitdrop.inotify.WatchThread') as thread_obj_create:
+    def test_run_inotify_creates_a_thread_and_runs_it(self):
+        async_loop = None
+        async def run_async():
+            nonlocal async_loop
+            loop = asyncio.get_event_loop()
+            async_loop = loop
+            self.out.stop()
             self.out.run_inotify(loop)
 
-        thread_obj_create.assert_called_once_with(loop)
-        thread_obj_create.return_value.run.assert_called_once()
+        with unittest.mock.patch('gitdrop.inotify.WatchThread') as thread_obj_create:
+            asyncio.run( run_async())
+
+        thread_obj_create.assert_called_once_with(async_loop, self.out.iwatch)
+        thread_obj_create.return_value.start.assert_called_once()
 
 
 class TestDaemonClass_satic_class_methods(unittest.TestCase):
