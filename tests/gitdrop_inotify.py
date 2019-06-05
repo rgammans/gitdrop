@@ -307,7 +307,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         """ 
         phase =None
         LOOPS_UNTIL_COMPLETE = 4
-        
+
         gb = unittest.mock.MagicMock()
         class MockDaemon:
             def __init__(self,):
@@ -344,7 +344,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
                     oldq.set_result(None)
 
                 await asyncio.sleep(0)
-    
+
             #Finally allow the loop on it mwrry way
             mut.quiet.set_result(None)
 
@@ -362,5 +362,5 @@ class TestInotify_module_level_functions(unittest.TestCase):
 
         with unittest.mock.patch('gitdrop.inotify.rotate_changes',new=rotate_changes_replacement):
             asyncio.run(mut.action_loop(daemon))
-        
+
         self.assertEqual(called,1)

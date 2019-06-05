@@ -102,6 +102,8 @@ class ChangeSet:
         return len(self.q)
 
 
+## Filewatcher / inotify singleton data elements and mutators.
+
 quiet = None #'asyncio.Future()
 changes = ChangeSet()
 
@@ -114,6 +116,7 @@ def rotate_changes():
 
 
 def event2change(dummy, evtypes, path,filename ):
+    """Converts an inotify event to an Change to be recored in a ChangeSet"""
     fullpath = os.path.join(path,filename)
     evtypes = set(evtypes)
     if evtypes.intersection(["IM_CLOSE_WRITE","IM_CREATE","IM_MOVED_TO"]):
@@ -125,10 +128,12 @@ def event2change(dummy, evtypes, path,filename ):
     return Change(typ,fullpath)
 
 def enqueue_change(*args):
+    """Ands a event to a changeset and reset the monostable delay"""
     changes.add(event2change(*args))
     extend_quiet_delay()
 
 def extend_quiet_delay():
+    """Resets the quiet monostable"""
     global quiet
     delay = asyncio.sleep(QUIET_GUARD_DELAY / 1000 )
     quiet = asyncio.gather(quiet,delay)
