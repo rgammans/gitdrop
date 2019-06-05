@@ -9,18 +9,18 @@ QUIET_GUARD_DELAY=200 #milliseconds
 
 
 async def action_loop( daemon ):
+    """Main asynchrounous filewatcher loop"""
     thread = WatchThread( asyncio.get_event_loop(), daemon.iwatch )
-    thread.start()
     if not quiet:
         changes = rotate_changes()
         if len(changes) != 0:
             raise RuntimeError("Changes without async timer")
+    thread.start()
     while daemon.is_running:
         await quiet
         ## It's possible that the quiet delay (and future)
         #  was extended while we were waiting on a specific
         #  instance; if so we go back and re-wait.
-        #TODO: Check this  with a unittest
         if not quiet.done(): continue
 
         changes = rotate_changes()

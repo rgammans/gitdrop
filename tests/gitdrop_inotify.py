@@ -279,3 +279,88 @@ class TestInotify_module_level_functions(unittest.TestCase):
             self.assertNotEqual(mut.changes, unittest.mock.sentinel.CHANGES)
             self.assertNotEqual(mut.quiet, unittest.mock.sentinel.QUIET)
 
+
+    def test_extending_wait_delays_rotate_being_invoked(self,):
+        """
+        It's possible that the quiet delay (and future)
+        was extended while we the action loop was await-ing on a specific
+        instance; this test checks this case is handled correctly.
+
+        This is a race hazard test ;  Which make it a bit complex.abs
+
+        We have a counting MockDaemon which is 'running' for 4 calls
+        around the mainloop. Also mock rotatehcnages; and return a
+        mockobject awith an apply which counts it's calls.abs
+
+        Finally we have another async loop; this one can only be running
+        if the action_loo()is currently suspended; and it only has a
+        single await statement; so it must me be there. Which is perfect;
+        so we check is_running has run since rotate_changes ; by tracking
+        the phase and swap out quiet; and resolve the old one.
+
+        We do this until the last time rounf the is_running loop would happen 
+        and that time we resolve the quiet and leave it unreplaced.abs
+
+        After theis the action_loop show complet as the daeomn reports not running
+        and we can chance apply() has once been called once.
+
+        """ 
+        phase =None
+        LOOPS_UNTIL_COMPLETE = 4
+        
+        gb = unittest.mock.MagicMock()
+        class MockDaemon:
+            def __init__(self,):
+                class Watch:
+                    def event_gen(self,):
+                        return []
+
+                self.iwatch = Watch()
+                self.gitbackend = gb
+                self.count = 0
+
+            @property
+            def is_running(self,):
+                nonlocal phase
+                if mut.quiet is None:
+                    mut.quiet = asyncio.Future( )
+                    asyncio.create_task(hack_quiet())
+                phase = "ABOUT_TO_AWAIT"
+                self.count += 1
+                return self.count  < LOOPS_UNTIL_COMPLETE
+
+
+        daemon = MockDaemon()
+        async def hack_quiet():
+            nonlocal phase
+            while daemon.count < (LOOPS_UNTIL_COMPLETE-1):
+                if phase == "ABOUT_TO_AWAIT":
+                    # Actually becuase we are here;
+                    # the system must have awaitEed
+                    oldq = mut.quiet
+                    # replace quiet
+                    mut.quiet = asyncio.Future()
+                    # and relase the old one
+                    oldq.set_result(None)
+
+                await asyncio.sleep(0)
+    
+            #Finally allow the loop on it mwrry way
+            mut.quiet.set_result(None)
+
+
+        called = 0
+        class MockChanges(list):
+            def apply(self,dummy):
+                nonlocal called
+                called += 1
+
+        def rotate_changes_replacement():
+            nonlocal phase
+            phase = "AWAITED"
+            return MockChanges()
+
+        with unittest.mock.patch('gitdrop.inotify.rotate_changes',new=rotate_changes_replacement):
+            asyncio.run(mut.action_loop(daemon))
+        
+        self.assertEqual(called,1)

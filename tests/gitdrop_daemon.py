@@ -102,15 +102,6 @@ class TestDaemonClass(unittest.TestCase):
     def test_triggers_id_a_remote_fecths_is_nonempty_calls_merge_remote(self,):
         self.fail()
 
-    @unittest.skip('nyi')
-    def test_after_a_local_change_amonstable_timer_is_reset(self,):
-        self.fail()
-
-    @unittest.skip('nyi')
-    def test_after_a_the_monostable_timer_completes_changes_are_added_and_commited_to_git_and_a_remote_uipdate_cylce(self,):
-        ## Eg check calls to the local commit; and remote udpate fumctiosn
-        self.fail()
-
 
 class TestDaemon_instance_methods(unittest.TestCase):
     def setUp(self,):
