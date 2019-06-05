@@ -39,7 +39,8 @@ class WatchThread(threading.Thread):
 
     def run(self,):
         for event in self.notifier.event_gen():
-            self.process_event(event)
+            if event is not None:
+                self.process_event(event)
 
     def process_event(self, event, *args, **kwargs):
        self.loop.call_soon_threadsafe(functools.partial(enqueue_change, *event ))
@@ -66,9 +67,12 @@ class ChangeSet:
     """
     def __init__(self,):
         self.q = [ ]
+        self.anyadded = asyncio.Future()
 
 
     def add(self,change):
+        if change is None:
+            return
         new_q = []
         ## Filter mulitple actions on a single path
         for prev in self.q:
@@ -83,6 +87,7 @@ class ChangeSet:
 
         self.q = new_q
         self.q.append(change)
+        self.anyadded.set_result(None)
 
     def apply(self, gitbackend):
 #        self.applied = True
@@ -110,8 +115,8 @@ changes = ChangeSet()
 def rotate_changes():
     global quiet
     global changes
-    quiet = asyncio.Future()
     rv , changes = changes, ChangeSet()
+    quiet = changes.anyadded
     return rv
 
 
@@ -119,9 +124,10 @@ def event2change(dummy, evtypes, path,filename ):
     """Converts an inotify event to an Change to be recored in a ChangeSet"""
     fullpath = os.path.join(path,filename)
     evtypes = set(evtypes)
-    if evtypes.intersection(["IM_CLOSE_WRITE","IM_CREATE","IM_MOVED_TO"]):
+    print (evtypes)
+    if evtypes.intersection(["IN_CLOSE_WRITE","IN_CREATE","IN_MOVED_TO"]):
         typ = ChangeType.ADD_FILE
-    elif evtypes.intersection(["IM_DELETE","IM_MOVED_FROM"]):
+    elif evtypes.intersection(["IN_DELETE","IN_MOVED_FROM"]):
         typ = ChangeType.REMOVE_FILE
     else:
         return

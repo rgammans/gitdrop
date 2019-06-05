@@ -51,6 +51,23 @@ class TestIntofyThreadClass_class_methods(unittest.TestCase):
         self.notify.event_gen.assert_any_call()
         pe.assert_has_calls([ unittest.mock.call(x) for x in looper()])
 
+    def test_run_method_waits_on_event_generator_and_calls_process_event_with_the_output_ignores_nones(self,):
+        max_value = 10
+        def looper():
+            """ A finite deterministic generator used to generate a test sequence
+            We should be able to subistite this for pretty much any generator.
+            """
+            for i in range(max_value):
+                yield i
+                yield None
+
+        self.notify.event_gen.return_value = iter(looper())
+        with unittest.mock.patch.object(self.out,'process_event') as pe:
+            self.out.run()
+        self.notify.event_gen.assert_any_call()
+        pe.assert_has_calls([ unittest.mock.call(x) for x in looper() if x is not None])
+
+
     #def test_thread_stopswhen_needed(self,):pass
     #def test_thread_forks_correctlt(self,):pass
 
@@ -70,8 +87,10 @@ class TestChangeset_instance_methods(unittest.TestCase):
     
     def setUp(self,):
         self.out = mut.ChangeSet()
+        self.out.anyadded = unittest.mock.MagicMock()
         self.out.add( mut.Change(mut.ChangeType.ADD_FILE,"add"))
         self.out.add( mut.Change(mut.ChangeType.REMOVE_FILE,"remove"))
+        self.start_len =2
 
     def test_changset_contains_is_true_for_items_in_the_set(self,):
         ## We test this two ways to be sure
@@ -87,18 +106,27 @@ class TestChangeset_instance_methods(unittest.TestCase):
         cur = len(self.out)
         self.out.add( mut.Change(mut.ChangeType.ADD_FILE,"add"))
         self.assertEqual(len(self.out),cur)
+        self.assertEqual(self.out.anyadded.set_result.call_count,self.start_len)
+
+    def test_adding_an_adding_a_None_object_make_no_difference_add_deosnt_call_anyadded_setresult(self,):
+        cur = len(self.out)
+        self.out.add( None )
+        self.assertEqual(len(self.out),cur)
+        self.assertEqual(self.out.anyadded.set_result.call_count,self.start_len)
 
     def test_adding_a_remove__of_an_already_removed_file_to_a_changeset_make_no_difference(self,):
         cur = len(self.out)
         self.out.add( mut.Change(mut.ChangeType.REMOVE_FILE,"remove"))
         self.assertEqual(len(self.out),cur)
+        self.assertEqual(self.out.anyadded.set_result.call_count,self.start_len)
 
     def test_adding_a_add__of_an_already_removed_file_to_a_changet_removes_the_remove_but_leaves_anythingelse(self,):
         self.out.add( mut.Change(mut.ChangeType.ADD_FILE,"remove"))
         self.assertNotIn( mut.Change(mut.ChangeType.REMOVE_FILE,"remove"), self.out)
         self.assertIn( mut.Change(mut.ChangeType.ADD_FILE,"remove"), self.out)
         self.assertIn( mut.Change(mut.ChangeType.ADD_FILE,"add"), self.out)
-
+        #Also checked quiet in unset; 
+        self.assertEqual(self.out.anyadded.set_result.call_count,self.start_len + 1)
 
 
     def test_adding_a_remove__of_an_already_added_file_to_a_changet_removes_the_remove_but_leaves_anythingelse(self,):
@@ -106,7 +134,8 @@ class TestChangeset_instance_methods(unittest.TestCase):
         self.assertNotIn( mut.Change(mut.ChangeType.ADD_FILE,"add"), self.out)
         self.assertIn( mut.Change(mut.ChangeType.REMOVE_FILE,"add"), self.out)
         self.assertIn( mut.Change(mut.ChangeType.REMOVE_FILE,"remove"), self.out)
-
+        #Also checked quiet in unset; 
+        self.assertEqual(self.out.anyadded.set_result.call_count,self.start_len + 1)
 
     def test_apply_makes_git_backend_calls_in_turn_then_commits(self,):
         gitbackend = unittest.mock.MagicMock()
@@ -138,7 +167,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         path,filename = "PATH","FILENAME"
         change = mut.event2change(
                                         unittest.mock.sentinel.DUMMY,
-                                        [ 'IM_CLOSE_WRITE' ],
+                                        [ 'IN_CLOSE_WRITE' ],
                                         path,filename
                                         )
         self.assertEqual(change.change_type,mut.ChangeType.ADD_FILE )
@@ -148,7 +177,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         path,filename = "PATH","FILENAME"
         change = mut.event2change(
                                         unittest.mock.sentinel.DUMMY,
-                                        [ 'IM_CREATE' ],
+                                        [ 'IN_CREATE' ],
                                         path,filename
                                         )
         self.assertEqual(change.change_type,mut.ChangeType.ADD_FILE )
@@ -158,7 +187,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         path,filename = "PATH","FILENAME"
         change = mut.event2change(
                                         unittest.mock.sentinel.DUMMY,
-                                        [ 'IM_DELETE' ],
+                                        [ 'IN_DELETE' ],
                                         path,filename
                                         )
         self.assertEqual(change.change_type,mut.ChangeType.REMOVE_FILE )
@@ -170,7 +199,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         path,filename = "PATH","FILENAME"
         change = mut.event2change(
                                         unittest.mock.sentinel.DUMMY,
-                                        [ 'IM_MOVED_FROM' ],
+                                        [ 'IN_MOVED_FROM' ],
                                         path,filename
                                         )
         self.assertEqual(change.change_type,mut.ChangeType.REMOVE_FILE )
@@ -180,7 +209,7 @@ class TestInotify_module_level_functions(unittest.TestCase):
         path,filename = "PATH","FILENAME"
         change = mut.event2change( 
                                         unittest.mock.sentinel.DUMMY,
-                                        [ 'IM_MOVED_TO' ],
+                                        [ 'IN_MOVED_TO' ],
                                         path,filename
                                         )
         self.assertEqual(change.change_type,mut.ChangeType.ADD_FILE )
@@ -364,3 +393,21 @@ class TestInotify_module_level_functions(unittest.TestCase):
             asyncio.run(mut.action_loop(daemon))
 
         self.assertEqual(called,1)
+
+
+    def test_a_chain_of_dealy_extensions_will_eventually_resolve(self,):
+        TEST_LOOPS = 10
+        async def actual_test():
+            mut.rotate_changes() # Initialise
+            for _ in range(TEST_LOOPS):
+                mut.extend_quiet_delay()
+            mut.changes.anyadded.set_result(None)
+            await mut.quiet
+
+        async def main():
+            await asyncio.wait_for(actual_test(), timeout = 1)
+
+        with unittest.mock.patch('gitdrop.inotify.QUIET_GUARD_DELAY', new = 0):
+            asyncio.run(main())
+
+        self.assertNotEqual(mut.QUIET_GUARD_DELAY,0)
