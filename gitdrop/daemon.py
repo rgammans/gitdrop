@@ -11,7 +11,7 @@ class Daemon:
         self.remote = remote
         self.rembranch = branch
         if not os.path.exists(os.path.join(path, '.git')):
-            raise RuntimeError(path +" doesn not exist")
+            raise RuntimeError(path +" does not exist as git repo")
 
         self.gitbackend = git.cmd.Git(path)
         status = (self.gitbackend.status().split("\n"))[0]
@@ -31,8 +31,13 @@ class Daemon:
         return f'%(user)s__%(pid)s'
 
     def run(self,):
-        asyncio.run(self.async_main())
+        try:
+            asyncio.run(self.async_main())
+        except KeyboardInterrupt:
+            self.stop()
+
         self.iwatch = None
+ 
 
 
     @property
