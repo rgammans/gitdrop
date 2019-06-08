@@ -6,6 +6,17 @@ import asyncio
 
 from . import inotify as gdi
 
+class GitBackend:
+    def __init__(self,daemon):
+        self.d = daemon
+    def add(self, *args):
+        return self.d.g.add(*args)
+    def remove(self, *args):
+        return self.d.g.remove(*args)
+    def commit(self,):
+        return self.d.g.commit('-m',self.d.message)
+
+
 class Daemon:
     def __init__(self, path, remote = None , branch = None , **kwargs ):
         self.remote = remote
@@ -13,16 +24,19 @@ class Daemon:
         if not os.path.exists(os.path.join(path, '.git')):
             raise RuntimeError(path +" does not exist as git repo")
 
-        self.gitbackend = git.cmd.Git(path)
-        status = (self.gitbackend.status().split("\n"))[0]
+        self.g = git.cmd.Git(path)
+        self.gitbackend = GitBackend(self)
+        self.message = 'Autocommit'
+        status = (self.g.status().split("\n"))[0]
         if "detached" in  status:
-            self.gitbackend.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
+            self.g.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
 
         if self.remote:
-            self.gitbackend.pull([self.remote,self.rembranch])
+            self.g.pull([self.remote,self.rembranch])
 
         self.iwatch = inotify.adapters.InotifyTree(path)
         self.finished= None
+
 
     @staticmethod
     def _uniquename(self,):

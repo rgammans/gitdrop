@@ -4,6 +4,10 @@ from dataclasses import dataclass
 import asyncio
 import functools
 import threading
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 QUIET_GUARD_DELAY=200 #milliseconds
 
@@ -17,14 +21,21 @@ async def action_loop( daemon ):
             raise RuntimeError("Changes without async timer")
     thread.start()
     while daemon.is_running:
+        logger.debug ("waiting")
         await quiet
         ## It's possible that the quiet delay (and future)
         #  was extended while we were waiting on a specific
         #  instance; if so we go back and re-wait.
-        if not quiet.done(): continue
+        if not quiet.done():
+            logger.debug ("temp unlock")
+            continue
 
-        changes = rotate_changes()
-        changes.apply(daemon.gitbackend)
+        logger.debug ("ap 1")
+        try:
+            changes = rotate_changes()
+            changes.apply(daemon.gitbackend)
+        except BaseException as error:
+            logger.warning("igonring exception applying changes",exc_info=1)
 
 class WatchThread(threading.Thread):
     """This class handles the blocking natures of inotify
@@ -71,6 +82,7 @@ class ChangeSet:
 
 
     def add(self,change):
+        logger.debug("change:",change)
         if change is None:
             return
         new_q = []
@@ -90,6 +102,7 @@ class ChangeSet:
         self.anyadded.set_result(None)
 
     def apply(self, gitbackend):
+        logger.debug("applyied")
 #        self.applied = True
         for change in self.q:
             if change.change_type == ChangeType.ADD_FILE:
@@ -97,6 +110,7 @@ class ChangeSet:
             elif change.change_type == ChangeType.REMOVE_FILE:
                 gitbackend.remove(change.path)
 
+        ## FIXME: NEED TO specify a message
         gitbackend.commit()
 
     def __contains__(self,item):
@@ -124,7 +138,7 @@ def event2change(dummy, evtypes, path,filename ):
     """Converts an inotify event to an Change to be recored in a ChangeSet"""
     fullpath = os.path.join(path,filename)
     evtypes = set(evtypes)
-    print (evtypes)
+    logger.debug (evtypes)
     if evtypes.intersection(["IN_CLOSE_WRITE","IN_CREATE","IN_MOVED_TO"]):
         typ = ChangeType.ADD_FILE
     elif evtypes.intersection(["IN_DELETE","IN_MOVED_FROM"]):
@@ -135,8 +149,10 @@ def event2change(dummy, evtypes, path,filename ):
 
 def enqueue_change(*args):
     """Ands a event to a changeset and reset the monostable delay"""
-    changes.add(event2change(*args))
-    extend_quiet_delay()
+    change =  event2change(*args)
+    if change and not (( os.path.sep+'.git'+os.path.sep ) in change.path):
+        changes.add(change)
+        extend_quiet_delay()
 
 def extend_quiet_delay():
     """Resets the quiet monostable"""

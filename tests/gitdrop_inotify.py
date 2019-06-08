@@ -222,10 +222,28 @@ class TestInotify_module_level_functions(unittest.TestCase):
         self.assertIsInstance(mut.quiet,asyncio.Future)
 
 
+    def test_when_enqueue_change_call_discards_changes_in_the_git_directory(self,):
+        with unittest.mock.patch.object(mut, 'extend_quiet_delay' , return_value = unittest.mock.sentinel.QUIET) as ag, \
+            unittest.mock.patch.object(mut.changes, 'add' , return_value = unittest.mock.sentinel.QUIET) as icsa:
+            mut.enqueue_change(None, ['IN_DELETE'], 'PATH/.git', 'filename' )
+
+        self.assertEqual(icsa.call_count,0)
+
+
+
+    def test_when_enqueue_change_call_discards_changes_in_the_git_directory_even_if_if_it_shuld_anywya(self,):
+        with unittest.mock.patch.object(mut, 'extend_quiet_delay' , return_value = unittest.mock.sentinel.QUIET) as ag, \
+            unittest.mock.patch.object(mut.changes, 'add' , return_value = unittest.mock.sentinel.QUIET) as icsa:
+            mut.enqueue_change(None, ['IN_OPEN'], 'PATH/.git', 'filename' )
+
+        self.assertEqual(icsa.call_count,0)
+
+
     def test_when_enqueue_change_call_extends_the_delay(self,):
+        change = mut.Change(mut.ChangeType.ADD_FILE, "path/file")
         with unittest.mock.patch.object(mut, 'extend_quiet_delay' , return_value = unittest.mock.sentinel.QUIET) as ag, \
             unittest.mock.patch.object(mut.changes, 'add' , return_value = unittest.mock.sentinel.QUIET) as icsa,\
-            unittest.mock.patch.object(mut, 'event2change' , return_value = unittest.mock.sentinel.CHANGE) as ice2c:
+            unittest.mock.patch.object(mut, 'event2change' , return_value = change) as ice2c:
             mut.enqueue_change(1,2,3,4)
 
 
@@ -233,14 +251,15 @@ class TestInotify_module_level_functions(unittest.TestCase):
 
 
     def test_when_enqueue_change_call_enquenue_the_change_by_covnert_it_and_adding_it(self,):
+        change = mut.Change(mut.ChangeType.ADD_FILE, "path/file")
         mut.rotate_changes()
         with unittest.mock.patch.object(mut, 'extend_quiet_delay' , return_value = unittest.mock.sentinel.QUIET) as ag, \
             unittest.mock.patch.object(mut.changes, 'add' , return_value = unittest.mock.sentinel.QUIET) as icsa,\
-            unittest.mock.patch.object(mut, 'event2change' , return_value = unittest.mock.sentinel.CHANGE) as ice2c:
+            unittest.mock.patch.object(mut, 'event2change' , return_value = change) as ice2c:
             mut.enqueue_change(1,2,3,4)
 
         ice2c.assert_called_once_with(1,2,3,4)
-        icsa.assert_called_once_with(  unittest.mock.sentinel.CHANGE )
+        icsa.assert_called_once_with(  change )
 
 
     def test_extends_quiet_delay_does_that(self,):
@@ -411,3 +430,38 @@ class TestInotify_module_level_functions(unittest.TestCase):
             asyncio.run(main())
 
         self.assertNotEqual(mut.QUIET_GUARD_DELAY,0)
+
+
+    def test_actionloop_copes_with_changes_apply_raising_an_exception(self,):
+        class MockChanges(list):
+            def apply(self,dummy):
+                raise RuntimeError()
+
+        def rotate_changes_replacement():
+            #Allow to preceed to apply
+            mut.quiet = asyncio.Future()
+            mut.quiet.set_result(None)
+            return MockChanges()
+
+        LOOPS_UNTIL_COMPLETE = 4
+        gb = unittest.mock.MagicMock()
+        class MockDaemon:
+            def __init__(self,):
+                class Watch:
+                    def event_gen(self,):
+                        return []
+
+                self.iwatch = Watch()
+                self.gitbackend = gb
+                self.count = 0
+
+            @property
+            def is_running(self,):
+                self.count += 1
+                return self.count  < LOOPS_UNTIL_COMPLETE
+
+
+        daemon = MockDaemon()
+        with unittest.mock.patch('gitdrop.inotify.rotate_changes',new=rotate_changes_replacement):
+            asyncio.run(mut.action_loop(daemon))
+        self.assertEqual(daemon.count,LOOPS_UNTIL_COMPLETE)

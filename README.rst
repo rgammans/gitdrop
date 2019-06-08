@@ -8,7 +8,12 @@ TL;DR - It doesn't work
 -----------------------
 
 On some linuxes (notably Debain and Ubuntu) the number of user
-watches is heavily restricted. To fix that run:
+watches is heavily restricted. In which case you will find you get
+errors like this
+
+    inotify.calls.InotifyError: Call failed (should not be -1): (-1) ERRNO=(0)
+
+To fix that run:
 
 ` sudo /sbin/sysctl fs.inotify.max_user_watches=524288 `
 

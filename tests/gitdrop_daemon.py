@@ -103,7 +103,7 @@ class TestDaemonClass(unittest.TestCase):
         self.fail()
 
 
-class TestDaemon_instance_methods(unittest.TestCase):
+class Tests_withDaemon_instances(unittest.TestCase):
     def setUp(self,):
         self.tdir_cntxt = tempfile.TemporaryDirectory()
         tdir =self.tdir_cntxt.__enter__()
@@ -125,6 +125,10 @@ class TestDaemon_instance_methods(unittest.TestCase):
         if self.loop:
             self.loop.close()
 
+
+
+
+class TestDaemon_instance_methods(Tests_withDaemon_instances):
     def test_run_with_no_asyncio_event_loop_starts_an_event_loop(self,):
         mainloop = unittest.mock.MagicMock()
         with unittest.mock.patch('asyncio.run', return_value="branch_foo") as un ,\
@@ -140,6 +144,10 @@ class TestDaemon_instance_methods(unittest.TestCase):
 
         un.assert_called_once_with(mainloop)
 
+
+    @unittest.skip('nyi')
+    def test_run_handles_keyboard_interrupt_cleanly_and_singles_shutdown_everywhere_needed(self,):
+        self.fail()
 
     #@unittest.skip("")
     def test_async_main_queues_the_remote_watch_co_routine(self,):
@@ -194,8 +202,41 @@ class TestDaemon_instance_methods(unittest.TestCase):
         thread_obj_create.return_value.start.assert_called_once()
 
 
-class TestDaemonClass_satic_class_methods(unittest.TestCase):
+class TestDaemonClass_static_class_methods(unittest.TestCase):
     """ This si sort of a test for randomise; so is as yet unimplemented"""
     @unittest.skip('nyi')
-    def test_uniqnue_name_apprporirately_unique(self,):
+    def test_uniqnue_name_appropriately_unique(self,):
         self.fail()
+
+
+
+class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
+    """ The git backend attribue is a co-instance which manages the 
+    the command connection to the git subsystem.
+    The aim of having our own subsystem is to remove the need to the 
+    local and remote managment subsystem to need to marshall data (such 
+    as a commit message) from the daemon to the git library themselves"""
+    actual_git_backend_daemon_attribute = 'g'
+    def setUp(self,):
+        super().setUp()
+        self.gitmock = unittest.mock.MagicMock()
+        setattr(self.out,self.actual_git_backend_daemon_attribute,self.gitmock)
+
+    def tearDown(self,):
+        super().tearDown()
+
+    def test_add_pass_call_to_add(self,):
+        filenm = unittest.mock.sentinel.FILENAME
+        self.out.gitbackend.add(filenm)
+        self.gitmock.add.assert_called_once_with(filenm)
+
+    def test_remove_pass_call_to_remove(self,):
+        filenm = unittest.mock.sentinel.FILENAME
+        self.out.gitbackend.remove(filenm)
+        self.gitmock.remove.assert_called_once_with(filenm)
+
+    def test_commit_pass_call_to_commit_add_adds_messages(self,):
+        self.out.message = unittest.mock.sentinel.MESSAGE
+        self.out.gitbackend.commit()
+        self.gitmock.commit.assert_called_once_with('-m',unittest.mock.sentinel.MESSAGE)
+
