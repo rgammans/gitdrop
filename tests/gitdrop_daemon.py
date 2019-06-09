@@ -227,12 +227,19 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
 
     def test_add_pass_call_to_add(self,):
         filenm = unittest.mock.sentinel.FILENAME
-        self.out.gitbackend.add(filenm)
+        self.out.path = unittest.mock.sentinel.BASEPATH
+        with unittest.mock.patch('os.path.relpath', return_value = filenm ) as opr:
+            self.out.gitbackend.add(filenm)
+
+        opr.assert_called_once_with(unittest.mock.sentinel.FILENAME,start =unittest.mock.sentinel.BASEPATH)
         self.gitmock.add.assert_called_once_with(filenm)
 
     def test_remove_pass_call_to_rm_with_ignore_unmatched(self,):
         filenm = unittest.mock.sentinel.FILENAME
-        self.out.gitbackend.remove(filenm)
+        self.out.path = unittest.mock.sentinel.BASEPATH
+        with unittest.mock.patch('os.path.relpath', return_value = filenm ) as opr:
+            self.out.gitbackend.remove(filenm)
+        opr.assert_called_once_with(unittest.mock.sentinel.FILENAME,start =unittest.mock.sentinel.BASEPATH)
         self.gitmock.rm.assert_called_once_with('--ignore-unmatch',filenm)
 
     def test_commit_pass_call_to_commit_add_adds_messages(self,):

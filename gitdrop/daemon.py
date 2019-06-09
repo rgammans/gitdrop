@@ -10,8 +10,10 @@ class GitBackend:
     def __init__(self,daemon):
         self.d = daemon
     def add(self, *args):
+        args = ( os.path.relpath(x, start = self.d.path) for x in args )
         return self.d.g.add(*args)
     def remove(self, *args):
+        args = ( os.path.relpath(x, start = self.d.path) for x in args )
         return self.d.g.rm('--ignore-unmatch',*args)
     def commit(self,):
         retv = self.d.g.commit('-m',self.d.message)
@@ -23,6 +25,7 @@ class GitBackend:
 
 class Daemon:
     def __init__(self, path, remote = None , branch = None , **kwargs ):
+        self.path = path
         self.remote = remote
         self.rembranch = branch
         if not os.path.exists(os.path.join(path, '.git')):
