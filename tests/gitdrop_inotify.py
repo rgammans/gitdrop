@@ -144,6 +144,13 @@ class TestChangeset_instance_methods(unittest.TestCase):
         gitbackend.remove.assert_called_once_with('remove')
         gitbackend.commit.assert_called_once_with()  ##FIXME: Should have a comment here.
 
+
+    def test_adding_a_change_to_and_applied_set_raises_an_error(self,):
+        gitbackend = unittest.mock.MagicMock()
+        self.out.apply(gitbackend)
+        with self.assertRaises(RuntimeError):
+            self.out.add(None)
+
 class TestInotify_module_level_functions(unittest.TestCase):
 
     def setUp(self,):

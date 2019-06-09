@@ -79,6 +79,7 @@ class ChangeSet:
     """
     def __init__(self,):
         self.q = [ ]
+        self.applied = False
         self.anyadded = asyncio.Future()
 
 
@@ -89,6 +90,9 @@ class ChangeSet:
 
         :param change Change: The change to add to the ChangeSet.
         """
+        if self.applied:
+            raise RuntimeError("Applied changeset should be considered immutable")
+
         logger.debug("change: %r",change)
         if change is None:
             return
@@ -112,7 +116,8 @@ class ChangeSet:
         self.anyadded.set_result(None)
 
     def apply(self, gitbackend):
-#        self.applied = True
+        """Sends the recorded set of changes to the Git Backend"""
+        self.applied = True
         for change in self.q:
             logger.debug("applying %r",change)
             try:
