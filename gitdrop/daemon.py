@@ -10,10 +10,12 @@ class GitBackend:
     def __init__(self,daemon):
         self.d = daemon
     def add(self, *args):
+        print ("git-add",args)
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
         return self.d.g.add(*args)
     def remove(self, *args):
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
+        print ("git-rm",args)
         return self.d.g.rm('--ignore-unmatch',*args)
     def commit(self,):
         retv = self.d.g.commit('-m',self.d.message)
@@ -49,7 +51,7 @@ class Daemon:
     def _uniquename():
         pid = os.getpid()
         user = username()
-        return f'%(user)s__%(pid)s'
+        return f'{user}__{pid}'
 
     def run(self,):
         try:

@@ -51,7 +51,9 @@ class WatchThread(threading.Thread):
     def run(self,):
         for event in self.notifier.event_gen():
             if event is not None:
-                logger.debug("notified: %s",event)
+                # This is really noisy so log at half the usual 
+                # debug level!
+                logger.log(5,"notified: %s",event)
                 self.process_event(event)
 
     def process_event(self, event, *args, **kwargs):
