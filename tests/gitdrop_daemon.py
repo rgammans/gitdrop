@@ -240,3 +240,20 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.out.gitbackend.commit()
         self.gitmock.commit.assert_called_once_with('-m',unittest.mock.sentinel.MESSAGE)
 
+    def test_commit_follows_with_a_push_if_remote_not_none(self,):
+        self.out.rembranch = unittest.mock.sentinel.BRANCH
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        with unittest.mock.patch.object(self.out, '_uniquename' ,return_value= "mybranch") as un:
+            self.out.gitbackend.commit()
+
+        self.gitmock.push.assert_called_once_with(unittest.mock.sentinel.REMOTE,"HEAD:mybranch")
+
+    def test_commit_follows_with_a_push(self,):
+        self.out.rembranch = unittest.mock.sentinel.BRANCH
+        self.out.remote = None
+        with unittest.mock.patch.object(self.out, '_uniquename' ,return_value= "mybranch") as un:
+            self.out.gitbackend.commit()
+
+        self.assertEqual(self.gitmock.push.call_count,0)
+
+       

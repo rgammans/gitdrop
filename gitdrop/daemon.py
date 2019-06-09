@@ -14,7 +14,11 @@ class GitBackend:
     def remove(self, *args):
         return self.d.g.rm('--ignore-unmatch',*args)
     def commit(self,):
-        return self.d.g.commit('-m',self.d.message)
+        retv = self.d.g.commit('-m',self.d.message)
+        # We push to our own remote branch if possible; and 
+        # merge to the remote branch on merge actions.
+        if self.d.remote is not None:
+            self.d.g.push(self.d.remote, "HEAD:" + self.d._uniquename() )
 
 
 class Daemon:
@@ -39,7 +43,7 @@ class Daemon:
 
 
     @staticmethod
-    def _uniquename(self,):
+    def _uniquename():
         pid = os.getpid()
         user = username()
         return f'%(user)s__%(pid)s'
