@@ -21,16 +21,16 @@ async def action_loop( daemon ):
             raise RuntimeError("Changes without async timer")
     thread.start()
     while daemon.is_running:
-        logger.debug ("waiting")
+        logger.debug ("Localloop: waiting")
         await quiet
         ## It's possible that the quiet delay (and future)
         #  was extended while we were waiting on a specific
         #  instance; if so we go back and re-wait.
         if not quiet.done():
-            logger.debug ("temp unlock")
+            logger.debug ("localloop: got temp unlock -relocking")
             continue
 
-        logger.debug ("ap 1")
+        logger.debug ("localloop: starting apply phase")
         try:
             changes = rotate_changes()
             changes.apply(daemon.gitbackend)
@@ -51,6 +51,7 @@ class WatchThread(threading.Thread):
     def run(self,):
         for event in self.notifier.event_gen():
             if event is not None:
+                logger.debug("notified: %s",event)
                 self.process_event(event)
 
     def process_event(self, event, *args, **kwargs):
@@ -82,7 +83,13 @@ class ChangeSet:
 
 
     def add(self,change):
-        logger.debug("change:",change)
+        """Adds a Change object to the list.
+        This fucntion edits the list so that the appl list is the minimum
+        set to record the final state.
+
+        :param change Change: The change to add to the ChangeSet.
+        """
+        logger.debug("change: %r",change)
         if change is None:
             return
         new_q = []
@@ -96,24 +103,26 @@ class ChangeSet:
                 return
             elif change.path != prev.path:
                 new_q.append(prev)
+            #else:
+            # if new_q is same path; but different action
+            # it gets filtered out.
 
         self.q = new_q
         self.q.append(change)
         self.anyadded.set_result(None)
 
     def apply(self, gitbackend):
-        logger.debug("applyied")
 #        self.applied = True
         for change in self.q:
+            logger.debug("applying %r",change)
             try:
                 if change.change_type == ChangeType.ADD_FILE:
                     gitbackend.add(change.path)
                 elif change.change_type == ChangeType.REMOVE_FILE:
                     gitbackend.remove(change.path)
             except Exception as error:
-                logger.warning("igonring exception applying change %r"%change,exc_info=1)
+                logger.warning("ignoring exception applying change %r"%(change,),exc_info=1)
 
-        ## FIXME: NEED TO specify a message
         gitbackend.commit()
 
     def __contains__(self,item):
@@ -141,7 +150,7 @@ def event2change(dummy, evtypes, path,filename ):
     """Converts an inotify event to an Change to be recored in a ChangeSet"""
     fullpath = os.path.join(path,filename)
     evtypes = set(evtypes)
-    logger.debug (evtypes)
+#    logger.debug ("Events %r",evtypes)
     if evtypes.intersection(["IN_CLOSE_WRITE","IN_CREATE","IN_MOVED_TO"]):
         typ = ChangeType.ADD_FILE
     elif evtypes.intersection(["IN_DELETE","IN_MOVED_FROM"]):
