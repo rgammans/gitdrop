@@ -5,6 +5,7 @@ import inotify.adapters
 import asyncio
 
 from . import inotify as gdi
+from . import remote as gdr
 
 class GitBackend:
     def __init__(self,daemon):
@@ -23,6 +24,11 @@ class GitBackend:
         # merge to the remote branch on merge actions.
         if self.d.remote is not None:
             self.d.g.push(self.d.remote, "HEAD:" + self.d._uniquename() )
+
+        return retv
+
+    def fetch(self,):
+        return self.d.g.fetch(self.d.remote,self.d.rembranch+":gitdrop_remote/"+self.d.rembranch)
 
 
 class Daemon:
@@ -75,7 +81,8 @@ class Daemon:
     async def local_watch(self,):
         self.run_inotify(asyncio.get_event_loop())
 
-    async def remote_watch(self,):pass
+    async def remote_watch(self,):
+        await gdr.remote_watcher(self,)
 
     def run_inotify(self,loop):
         loop.create_task(gdi.action_loop(self))

@@ -5,6 +5,7 @@ import tempfile
 import os
 import asyncio
 import threading
+import aiounittest
 
 # Real Dependencies need for mock introspection
 import git.cmd
@@ -186,6 +187,13 @@ class TestDaemon_instance_methods(Tests_withDaemon_instances):
         thread_starter.assert_called_once_with(unittest.mock.sentinel.LOOP)
 
 
+    def test_remotewatch_launches_the_remote_loop(self,):
+        with unittest.mock.patch.object(mut.gdr, 'remote_watcher', return_value= aiounittest.futurized(None)) as remote:
+             asyncio.run(self.out.remote_watch(), debug = True)
+
+        remote.assert_called_once_with(self.out)
+
+
     def test_run_inotify_creates_a_thread_and_runs_it(self):
         async_loop = None
         async def run_async():
@@ -254,6 +262,14 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
             self.out.gitbackend.commit()
 
         self.gitmock.push.assert_called_once_with(unittest.mock.sentinel.REMOTE,"HEAD:mybranch")
+
+    def test_fetch_forwards_to_realbackend_withdaemon_remote_etc(self,):
+        self.out.rembranch = "REMOTEBRANCH"
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.out.gitbackend.fetch()
+
+        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,"REMOTEBRANCH:gitdrop_remote/REMOTEBRANCH")
+
 
     def test_commit_follows_with_a_push(self,):
         self.out.rembranch = unittest.mock.sentinel.BRANCH
