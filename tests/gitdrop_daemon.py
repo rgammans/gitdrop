@@ -224,11 +224,16 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
     The aim of having our own subsystem is to remove the need to the 
     local and remote managment subsystem to need to marshall data (such 
     as a commit message) from the daemon to the git library themselves"""
-    actual_git_backend_daemon_attribute = 'g'
+    actual_git_backend_daemon_attribute = 'gcmd'
+    actual_git_repo_daemon_attribute = 'grepo'
     def setUp(self,):
         super().setUp()
         self.gitmock = unittest.mock.MagicMock()
+        self.repomock = unittest.mock.MagicMock()
         setattr(self.out,self.actual_git_backend_daemon_attribute,self.gitmock)
+        setattr(self.out,self.actual_git_repo_daemon_attribute,self.repomock)
+        self.remotebranch_name = "REMOTEBRANCH"
+        self.remote_trackingbranch_name = "gitdrop_remote/REMOTEBRANCH"
 
     def tearDown(self,):
         super().tearDown()
@@ -256,7 +261,7 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.gitmock.commit.assert_called_once_with('-m',unittest.mock.sentinel.MESSAGE)
 
     def test_commit_follows_with_a_push_if_remote_not_none(self,):
-        self.out.rembranch = unittest.mock.sentinel.BRANCH
+        self.out.rembranch = self.remotebranch_name
         self.out.remote = unittest.mock.sentinel.REMOTE
         with unittest.mock.patch.object(self.out, '_uniquename' ,return_value= "mybranch") as un:
             self.out.gitbackend.commit()
@@ -264,19 +269,41 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.gitmock.push.assert_called_once_with(unittest.mock.sentinel.REMOTE,"HEAD:mybranch")
 
     def test_fetch_forwards_to_realbackend_withdaemon_remote_etc(self,):
-        self.out.rembranch = "REMOTEBRANCH"
+        self.out.rembranch = self.remotebranch_name
         self.out.remote = unittest.mock.sentinel.REMOTE
         self.out.gitbackend.fetch()
 
-        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,"REMOTEBRANCH:gitdrop_remote/REMOTEBRANCH")
+        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
+
+    def test_fetch_returns_false_if_remote_tracking_branch_doesnt_move(self,):
+        self.out.rembranch = self.remotebranch_name
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        rv = self.out.gitbackend.fetch()
+        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
+        self.repomock.commit.assert_has_calls([unittest.mock.call(self.remote_trackingbranch_name) ] * 2)
+        self.assertFalse(rv)
+
+    def test_fetch_returns_true_if_remote_tracking_branch_does_move(self,):
+        self.out.rembranch = self.remotebranch_name
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.repomock.commit.side_effect = [ unittest.mock.sentinel.COMMIT1 , unittest.mock.sentinel.COMMIT2 ]
+        rv = self.out.gitbackend.fetch()
+        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
+        self.repomock.commit.assert_has_calls([unittest.mock.call(self.remote_trackingbranch_name) ] * 2)
+        self.assertTrue(rv)
 
 
     def test_commit_follows_with_a_push(self,):
-        self.out.rembranch = unittest.mock.sentinel.BRANCH
+        self.out.rembranch = self.remotebranch_name
         self.out.remote = None
         with unittest.mock.patch.object(self.out, '_uniquename' ,return_value= "mybranch") as un:
             self.out.gitbackend.commit()
 
         self.assertEqual(self.gitmock.push.call_count,0)
 
-       
+    def test_fast_forward_merge_attempts_a_fast_forward_merge(self,):
+        self.out.rembranch = self.remotebranch_name
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.out.gitbackend.fast_forward_merge()
+        self.gitmock.merge.assert_called_once_with('--ff-only',self.remote_trackingbranch_name)
+

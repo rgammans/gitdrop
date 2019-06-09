@@ -3,9 +3,12 @@ import git
 import username
 import inotify.adapters
 import asyncio
+import logging
 
 from . import inotify as gdi
 from . import remote as gdr
+
+logger = logging.getLogger(__name__)
 
 class GitBackend:
     def __init__(self,daemon):
@@ -13,22 +16,30 @@ class GitBackend:
     def add(self, *args):
         print ("git-add",args)
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
-        return self.d.g.add(*args)
+        return self.d.gcmd.add(*args)
     def remove(self, *args):
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
         print ("git-rm",args)
-        return self.d.g.rm('--ignore-unmatch',*args)
+        return self.d.gcmd.rm('--ignore-unmatch',*args)
     def commit(self,):
-        retv = self.d.g.commit('-m',self.d.message)
+        retv = self.d.gcmd.commit('-m',self.d.message)
         # We push to our own remote branch if possible; and 
         # merge to the remote branch on merge actions.
         if self.d.remote is not None:
-            self.d.g.push(self.d.remote, "HEAD:" + self.d._uniquename() )
+            self.d.gcmd.push(self.d.remote, "HEAD:" + self.d._uniquename() )
 
         return retv
 
     def fetch(self,):
-        return self.d.g.fetch(self.d.remote,self.d.rembranch+":gitdrop_remote/"+self.d.rembranch)
+        """Returns true if the remote branch has moved"""
+        old_commit = self.d.grepo.commit(self.d.tracking_branch)
+        self.d.gcmd.fetch(self.d.remote,self.d.rembranch+":"+self.d.tracking_branch)
+        new_commit = self.d.grepo.commit(self.d.tracking_branch)
+        return  old_commit != new_commit
+
+    def fast_forward_merge(self,):
+        return self.d.gcmd.merge('--ff-only',self.d.tracking_branch)
+
 
 
 class Daemon:
@@ -39,18 +50,25 @@ class Daemon:
         if not os.path.exists(os.path.join(path, '.git')):
             raise RuntimeError(path +" does not exist as git repo")
 
-        self.g = git.cmd.Git(path)
+        self.gcmd  = git.cmd.Git(path)
+        self.grepo = git.Repo(path)
         self.gitbackend = GitBackend(self)
         self.message = 'Autocommit'
-        status = (self.g.status().split("\n"))[0]
+        status = (self.gcmd.status().split("\n"))[0]
         if "detached" in  status:
-            self.g.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
+            self.gcmd.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
 
         if self.remote:
-            self.g.pull([self.remote,self.rembranch])
+            self.gcmd.pull([self.remote,self.rembranch])
 
         self.iwatch = inotify.adapters.InotifyTree(path)
         self.finished= None
+ 
+    @property
+    def tracking_branch(self,):
+        if self.rembranch:
+            return "gitdrop_remote/"+self.rembranch
+        return None
 
 
     @staticmethod

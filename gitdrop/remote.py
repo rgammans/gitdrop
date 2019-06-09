@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+from . import merge
+
 logger = logging.getLogger(__name__)
 
 
@@ -11,7 +13,8 @@ async def remote_watcher(daemon):
         await asyncio.sleep(FETCH_PERIOD)
         logger.debug('remoteloop: fetching')
         try:
-            daemon.gitbackend.fetch()
+            if daemon.gitbackend.fetch():
+                merge.do_merge(daemon)
             logger.debug('remoteloop: fetched')
         except Exception as err:
             logger.warning("Git fetch failed:", exc_info=1)

@@ -3,6 +3,7 @@ import unittest
 import aiounittest
 import unittest.mock
 import asyncio
+from custom_mocks import get_mock_daemon
 
 # Real Dependencies need for mock introspection
 import git.cmd
@@ -10,22 +11,6 @@ import git.cmd
 # Modules to be tested
 import gitdrop.remote as mut
 
-def get_mock_daemon(loopcount=0):
-        class MockDaemon:
-            def __init__(self,):
-                class Watch:
-                    def event_gen(self,):
-                        yield (1,"","","")
-
-                self.iwatch = Watch()
-                self.gitbackend = unittest.mock.MagicMock()
-                self.count = 0
-            @property
-            def is_running(self,):
-                self.count += 1
-                return self.count <= loopcount
-
-        return MockDaemon()
 
 class RemoteWatcherLoop(unittest.TestCase):
 
@@ -64,4 +49,23 @@ class RemoteWatcherLoop(unittest.TestCase):
         with unittest.mock.patch('asyncio.sleep', new = nowaiting) as sleep:
             asyncio.run(mut.remote_watcher(daemon))
         self.assertEqual(sleep_call_count,4)
+
+    def test_remote_watcher_loop_calls_do_merge_after_fetch_whcih_gets_something(self,):
+        daemon = get_mock_daemon(loopcount = 4)
+        daemon.gitbackend.fetch.return_value = True
+        async def nowaiting(*args):pass
+        with unittest.mock.patch('asyncio.sleep', new = nowaiting) as sleep,\
+             unittest.mock.patch('gitdrop.merge.do_merge') as merge:
+            asyncio.run(mut.remote_watcher(daemon))
+        self.assertEqual(merge.call_count,4)
+
+    def test_remote_watcher_loop_calls_dont_merge_after_fetch_which_dont_any_anything(self,):
+        daemon = get_mock_daemon(loopcount = 4)
+        daemon.gitbackend.fetch.return_value = False
+        async def nowaiting(*args):pass
+        with unittest.mock.patch('asyncio.sleep', new = nowaiting) as sleep,\
+             unittest.mock.patch('gitdrop.merge.do_merge') as merge:
+            asyncio.run(mut.remote_watcher(daemon))
+        self.assertEqual(merge.call_count,0)
+
 
