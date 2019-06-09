@@ -105,10 +105,13 @@ class ChangeSet:
         logger.debug("applyied")
 #        self.applied = True
         for change in self.q:
-            if change.change_type == ChangeType.ADD_FILE:
-                gitbackend.add(change.path)
-            elif change.change_type == ChangeType.REMOVE_FILE:
-                gitbackend.remove(change.path)
+            try:
+                if change.change_type == ChangeType.ADD_FILE:
+                    gitbackend.add(change.path)
+                elif change.change_type == ChangeType.REMOVE_FILE:
+                    gitbackend.remove(change.path)
+            except Exception as error:
+                logger.warning("igonring exception applying change %r"%change,exc_info=1)
 
         ## FIXME: NEED TO specify a message
         gitbackend.commit()

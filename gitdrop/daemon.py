@@ -12,7 +12,7 @@ class GitBackend:
     def add(self, *args):
         return self.d.g.add(*args)
     def remove(self, *args):
-        return self.d.g.remove(*args)
+        return self.d.g.rm('--ignore-unmatch',*args)
     def commit(self,):
         return self.d.g.commit('-m',self.d.message)
 
