@@ -38,8 +38,14 @@ class GitBackend:
         return  old_commit != new_commit
 
     def fast_forward_merge(self,):
-        return self.d.gcmd.merge('--ff-only',self.d.tracking_branch)
+        try:
+            self.d.gcmd.merge('--ff-only',self.d.tracking_branch)
+            return True
+        except git.cmd.GitCommandError:
+            return False
 
+    def clone_to(self,dest):
+        self.d.gcmd.clone(".",dest)
 
 
 class Daemon:

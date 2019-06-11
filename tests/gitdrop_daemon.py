@@ -307,3 +307,23 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.out.gitbackend.fast_forward_merge()
         self.gitmock.merge.assert_called_once_with('--ff-only',self.remote_trackingbranch_name)
 
+    def test_fast_forward_merge_returns_true_if_successful(self,):
+        self.out.rembranch = self.remotebranch_name
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.gitmock.merge.return_value = ""
+        rv = self.out.gitbackend.fast_forward_merge()
+        self.assertTrue(rv)
+
+    def test_fast_forward_merge_returns_true_if_unsuccessful(self,):
+        self.out.rembranch = self.remotebranch_name
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.gitmock.merge.side_effect=git.cmd.GitCommandError(command="merge",status=1)
+        rv = self.out.gitbackend.fast_forward_merge()
+        self.assertFalse(rv)
+
+    def test_clone_to_creates_new_clone_of_the_main_repo_in_the_passed_directory(self,):
+        destination = unittest.mock.sentinel.DESTDIR
+        rv = self.out.gitbackend.clone_to(destination)
+        self.gitmock.clone.assert_called_once_with('.',destination)
+
+
