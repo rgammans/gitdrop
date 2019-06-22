@@ -4,6 +4,7 @@ import username
 import inotify.adapters
 import asyncio
 import logging
+import secrets
 
 from . import inotify as gdi
 from . import remote as gdr
@@ -13,14 +14,17 @@ logger = logging.getLogger(__name__)
 class GitBackend:
     def __init__(self,daemon):
         self.d = daemon
+
     def add(self, *args):
         print ("git-add",args)
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
         return self.d.gcmd.add(*args)
+
     def remove(self, *args):
         args = ( os.path.relpath(x, start = self.d.path) for x in args )
         print ("git-rm",args)
         return self.d.gcmd.rm('--ignore-unmatch',*args)
+
     def commit(self,):
         retv = self.d.gcmd.commit('-m',self.d.message)
         # We push to our own remote branch if possible; and 
@@ -31,15 +35,26 @@ class GitBackend:
         return retv
 
     def fetch(self,):
-        """Returns true if the remote branch has moved"""
-        old_commit = self.d.grepo.commit(self.d.tracking_branch)
-        self.d.gcmd.fetch(self.d.remote,self.d.rembranch+":"+self.d.tracking_branch)
-        new_commit = self.d.grepo.commit(self.d.tracking_branch)
+        return self._fetch(self.d.remote,self.d.rembranch,self.d.tracking_branch)
+
+    def _fetch(self,src,src_branch,target):
+        """
+        :param str src: source repository
+        :param str src_branch: name of branch on source Repo
+        :param str target: name of target branch in local repo
+
+        Returns true if the remote branch has moved"""
+        old_commit = self.d.grepo.commit(target)
+        self.d.gcmd.fetch(src,src_branch+":"+target)
+        new_commit = self.d.grepo.commit(target)
         return  old_commit != new_commit
 
     def fast_forward_merge(self,):
+        return self._fast_forward_merge(self.d.tracking_branch)
+
+    def _fast_forward_merge(self,src_branch):
         try:
-            self.d.gcmd.merge('--ff-only',self.d.tracking_branch)
+            self.d.gcmd.merge('--ff-only',src_branch)
             return True
         except git.cmd.GitCommandError:
             return False
@@ -62,8 +77,10 @@ class Daemon:
         self.message = 'Autocommit'
         status = (self.gcmd.status().split("\n"))[0]
         if "detached" in  status:
-            self.gcmd.checkout(['-b', 'gitdrop_'+ self._uniquename() ])
+            self.localbranch = 'gitdrop_'+ self._uniquename()
+            self.gcmd.checkout(['-b', self.localbranch])
 
+        self.localbranch = self.grepo.active_branch.name
         if self.remote:
             self.gcmd.pull([self.remote,self.rembranch])
 

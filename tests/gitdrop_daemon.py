@@ -59,10 +59,11 @@ class TestDaemonClass(unittest.TestCase):
 
         ## Now start gitdrop cless
         with unittest.mock.patch('gitdrop.daemon.Daemon._uniquename', return_value="branch_foo") as un:
-            mut.Daemon(self.tdir)
+            d = mut.Daemon(self.tdir)
             status = g.status()
             self.assertFalse("detached" in status)
             un.assert_called_once()
+            self.assertEqual(d.localbranch, "gitdrop_" + un.return_value)
 
     @unittest.skip("nyi")
     def test_daemon_raises_and_execption_on_construction_if_the_provided_remote_is_inreachable(self):
@@ -93,7 +94,32 @@ class TestDaemonClass(unittest.TestCase):
         un.assert_called_once()
 
 
-   
+    def test_daemon_sets_the_localbranch_variale_to_the_current_branch_of_master(self,):
+        ## Create detached HEAD State.
+        g = git.cmd.Git(self.tdir)
+        g.init()
+        with open(os.path.join(self.tdir,"a"),"w"):
+            # Create empty file
+            pass
+        g.add(["a"])
+        g.commit(["-m","Add a"])
+        d = mut.Daemon(self.tdir)
+        self.assertEqual(d.localbranch, "master")
+
+    def test_daemon_sets_the_localbranch_variale_to_the_current_branch_even_if_not_master(self,):
+        newbranchname= "Gobbledigook"
+        ## Create detached HEAD State.
+        g = git.cmd.Git(self.tdir)
+        g.init()
+        with open(os.path.join(self.tdir,"a"),"w"):
+            # Create empty file
+            pass
+        g.add(["a"])
+        g.commit(["-m","Add a"])
+        g.checkout(["-b", newbranchname])
+        d = mut.Daemon(self.tdir)
+        self.assertEqual(d.localbranch, newbranchname)
+
     @unittest.skip('nyi')
     def test_triggers_a_fetch_from_remote_after_30secs_if_no_acrtions(self,):
         self.fail()
@@ -105,6 +131,7 @@ class TestDaemonClass(unittest.TestCase):
 
 
 class Tests_withDaemon_instances(unittest.TestCase):
+    """Base classes for other test suites"""
     def setUp(self,):
         self.tdir_cntxt = tempfile.TemporaryDirectory()
         tdir =self.tdir_cntxt.__enter__()
@@ -269,25 +296,29 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.gitmock.push.assert_called_once_with(unittest.mock.sentinel.REMOTE,"HEAD:mybranch")
 
     def test_fetch_forwards_to_realbackend_withdaemon_remote_etc(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
-        self.out.gitbackend.fetch()
+        rembranch = self.remotebranch_name
+        tracking = self.remote_trackingbranch_name
+        remote = unittest.mock.sentinel.REMOTE
+        self.out.gitbackend._fetch(remote,rembranch,tracking)
 
-        self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
+        self.gitmock.fetch.assert_called_once_with(remote,rembranch+":"+tracking)
 
     def test_fetch_returns_false_if_remote_tracking_branch_doesnt_move(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
-        rv = self.out.gitbackend.fetch()
+        rembranch = self.remotebranch_name
+        tracking = self.remote_trackingbranch_name
+        remote = unittest.mock.sentinel.REMOTE
+        rv = self.out.gitbackend._fetch(remote,rembranch,tracking)
         self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
         self.repomock.commit.assert_has_calls([unittest.mock.call(self.remote_trackingbranch_name) ] * 2)
         self.assertFalse(rv)
 
     def test_fetch_returns_true_if_remote_tracking_branch_does_move(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
+        rembranch = self.remotebranch_name
+        tracking = self.remote_trackingbranch_name
+        remote = unittest.mock.sentinel.REMOTE
         self.repomock.commit.side_effect = [ unittest.mock.sentinel.COMMIT1 , unittest.mock.sentinel.COMMIT2 ]
-        rv = self.out.gitbackend.fetch()
+        rv = self.out.gitbackend._fetch(remote,rembranch,tracking)
+
         self.gitmock.fetch.assert_called_once_with(unittest.mock.sentinel.REMOTE,self.remotebranch_name+":"+self.remote_trackingbranch_name)
         self.repomock.commit.assert_has_calls([unittest.mock.call(self.remote_trackingbranch_name) ] * 2)
         self.assertTrue(rv)
@@ -302,28 +333,57 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.assertEqual(self.gitmock.push.call_count,0)
 
     def test_fast_forward_merge_attempts_a_fast_forward_merge(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
-        self.out.gitbackend.fast_forward_merge()
+        rv = self.out.gitbackend._fast_forward_merge(self.remote_trackingbranch_name)
         self.gitmock.merge.assert_called_once_with('--ff-only',self.remote_trackingbranch_name)
 
     def test_fast_forward_merge_returns_true_if_successful(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
         self.gitmock.merge.return_value = ""
-        rv = self.out.gitbackend.fast_forward_merge()
+        rv = self.out.gitbackend._fast_forward_merge(self.remote_trackingbranch_name)
         self.assertTrue(rv)
 
     def test_fast_forward_merge_returns_true_if_unsuccessful(self,):
-        self.out.rembranch = self.remotebranch_name
-        self.out.remote = unittest.mock.sentinel.REMOTE
         self.gitmock.merge.side_effect=git.cmd.GitCommandError(command="merge",status=1)
-        rv = self.out.gitbackend.fast_forward_merge()
+        rv = self.out.gitbackend._fast_forward_merge(self.remote_trackingbranch_name)
         self.assertFalse(rv)
 
     def test_clone_to_creates_new_clone_of_the_main_repo_in_the_passed_directory(self,):
         destination = unittest.mock.sentinel.DESTDIR
         rv = self.out.gitbackend.clone_to(destination)
         self.gitmock.clone.assert_called_once_with('.',destination)
+
+    def test_merge_origin_on_merges_the_normal_branchnames_origin_tracking(self,):
+        destination = unittest.mock.sentinel.DESTDIR
+        self.out.rembranch = self.remotebranch_name
+        with unittest.mock.patch('git.cmd.Git') as gc:
+            rv = self.out.gitbackend.merge_origin_on(destination)
+        gc.assert_called_once_with(destination)
+        gc.return_value.merge.assert_called_once_with("remotes/origin/"+self.out.localbranch, "remotes/origin/"+self.remote_trackingbranch_name)
+
+
+
+    def test_ff_merge_calls_under_ff_merge(self,):
+        with unittest.mock.patch.object(self.out.__class__,'tracking_branch', new = unittest.mock.sentinel.TRACKING_BRANCH ) as x,\
+             unittest.mock.patch.object(self.out.gitbackend,'_fast_forward_merge') as gm:
+            rv = self.out.gitbackend.fast_forward_merge()
+
+        gm.assert_called_once_with( unittest.mock.sentinel.TRACKING_BRANCH
+        )
+
+
+    def test_fetch_calls_under_fetch(self,):
+        self.out.remote = unittest.mock.sentinel.REMOTE
+        self.out.rembranch = unittest.mock.sentinel.REMOTE_BRANCH
+
+        with unittest.mock.patch.object(self.out.__class__,'tracking_branch', new = unittest.mock.sentinel.TRACKING_BRANCH ) as x,\
+             unittest.mock.patch.object(self.out.gitbackend,'_fetch', return_value = unittest.mock.sentinel.TESTVALUE) as gf:
+            rv = self.out.gitbackend.fetch()
+
+        gf.assert_called_once_with(
+                unittest.mock.sentinel.REMOTE,
+                unittest.mock.sentinel.REMOTE_BRANCH,
+                unittest.mock.sentinel.TRACKING_BRANCH
+        )
+        self.assertEqual(rv, unittest.mock.sentinel.TESTVALUE)
+
 
 
