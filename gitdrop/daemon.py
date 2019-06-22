@@ -62,6 +62,22 @@ class GitBackend:
     def clone_to(self,dest):
         self.d.gcmd.clone(".",dest)
 
+    def merge_origin_on(self,dest):
+        mergerepo =  git.cmd.Git(dest)
+        mergerepo.merge("remotes/origin/"+self.d.localbranch,"remotes/origin/"+self.d.tracking_branch)
+        pass
+
+
+    def try_merge_update(self, alt_source):
+        tmp_branchname = self.get_new_branchname()
+        self._fetch(alt_source, self.d.tracking_branch, tmp_branchname)
+        rv = self._fast_forward_merge(tmp_branchname)
+        return rv
+
+
+    def get_new_branchname(self,):
+        return secrets.token_urlsafe(6)
+
 
 class Daemon:
     def __init__(self, path, remote = None , branch = None , **kwargs ):

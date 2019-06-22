@@ -17,3 +17,4 @@ def full_merge(daemon):
     with tempfile.TemporaryDirectory() as tmpdir:
         daemon.gitbackend.clone_to(tmpdir)
         daemon.gitbackend.merge_origin_on(tmpdir)
+        daemon.gitbackend.try_merge_update(tmpdir)

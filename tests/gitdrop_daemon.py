@@ -386,4 +386,59 @@ class TestDaemonClasses_gitbackend_attribute(Tests_withDaemon_instances):
         self.assertEqual(rv, unittest.mock.sentinel.TESTVALUE)
 
 
+    def test_try_merge_update_attempts_to_ff_merge_from_the_named_repo_and_returns_ff_merges_returnvalue(self,):
+        destination = unittest.mock.sentinel.DESTDIR
+        self.out.rembranch = self.remotebranch_name
+        with unittest.mock.patch.object(self.out.gitbackend,'_fetch') as gf,\
+             unittest.mock.patch.object( self.out.gitbackend,'get_new_branchname' , return_value = unittest.mock.sentinel.TMPBRANCH) as ggnb,\
+             unittest.mock.patch.object(self.out.gitbackend,'_fast_forward_merge', return_value = unittest.mock.sentinel.TESTVALUE) as gm:
+            rv = self.out.gitbackend.try_merge_update(destination)
+
+        gf.assert_called_once_with(destination, self.remote_trackingbranch_name ,unittest.mock.sentinel.TMPBRANCH)
+        gm.assert_called_once_with( unittest.mock.sentinel.TMPBRANCH)
+        self.assertEqual(rv, unittest.mock.sentinel.TESTVALUE)
+
+    def test_try_merge_update_attempts__returns_true_if_merge_succedds(self,):
+        destination = unittest.mock.sentinel.DESTDIR
+        self.out.rembranch = self.remotebranch_name
+        self.gitmock.merge.return_value = ""
+        with unittest.mock.patch.object(self.out.gitbackend,'_fetch') as gf,\
+             unittest.mock.patch.object( self.out.gitbackend,'get_new_branchname' , return_value = unittest.mock.sentinel.TMPBRANCH) as ggnb:
+            rv = self.out.gitbackend.try_merge_update(destination)
+
+        gf.assert_called_once_with(destination, self.remote_trackingbranch_name ,unittest.mock.sentinel.TMPBRANCH)
+        self.assertEqual(rv, True)
+
+
+    def test_try_merge_update_attempts__returns_false_if_merge_fails(self,):
+        destination = unittest.mock.sentinel.DESTDIR
+        self.out.rembranch = self.remotebranch_name
+        self.gitmock.merge.side_effect=git.cmd.GitCommandError(command="merge",status=1)
+        with unittest.mock.patch.object(self.out.gitbackend,'_fetch') as gf,\
+             unittest.mock.patch.object( self.out.gitbackend,'get_new_branchname' , return_value = unittest.mock.sentinel.TMPBRANCH) as ggnb:
+            rv = self.out.gitbackend.try_merge_update(destination)
+
+        gf.assert_called_once_with(destination, self.remote_trackingbranch_name ,unittest.mock.sentinel.TMPBRANCH)
+        self.assertEqual(rv, False)
+
+
+
+
+    def test_get_newbranchname_returns_a_nonzero_length_string(self,):
+        x = self.out.gitbackend.get_new_branchname()
+        self.assertEqual(type(x),str)
+        self.assertGreater(len(x),0)
+
+    def test_get_newbranchname_returns_a_name_which_isnt_a_standard_branch(self,):
+        x = self.out.gitbackend.get_new_branchname()
+        self.assertNotEqual(x,"master")
+        self.assertNotEqual(x,"HEAD")
+        self.assertNotEqual(x,self.out.rembranch)
+        self.assertNotEqual(x,self.out.tracking_branch)
+
+    def test_get_newbranchname_returns_something_different_each_call(self,):
+        x = self.out.gitbackend.get_new_branchname()
+        y = self.out.gitbackend.get_new_branchname()
+        self.assertNotEqual(x,y)
+
 

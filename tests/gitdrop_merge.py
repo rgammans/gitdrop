@@ -51,25 +51,46 @@ class Test_Mergingtools(unittest.TestCase):
         self.daemon.gitbackend.merge_origin_on.assert_called_once_with(tdir.__enter__.return_value)
 
 
-    def test_full_merge_calls_backend_does_proper_merge_after_clone(self,):
-        cloned = False
-        merged = False
+
+
+class Test_FullMerge( unittest.TestCase):
+
+    def setUp(self,):
+        self.daemon = get_mock_daemon(loopcount = 4)
+        self.cloned = False
+        self.merged = False
         tdir = unittest.mock.MagicMock()
-        tempdir = unittest.mock.patch('tempfile.TemporaryDirectory', return_value = tdir)
- 
+        self.tmpDir_name = tdir.__enter__.return_value
+        self.tempdir = unittest.mock.patch('tempfile.TemporaryDirectory', return_value = tdir)
+        self.merge_on_rv = None
+
         def clone_to(dest):
-            nonlocal cloned
-            cloned = True
-            self.assertEqual(dest,tdir.__enter__.return_value)
+            self.cloned = True
+            self.assertEqual(dest,self.tmpDir_name)
 
         def merge_on(dest):
-            nonlocal merged
-            merged = True
-            self.assertTrue(cloned)
-            self.assertEqual(dest,tdir.__enter__.return_value)
+            self.merged = True
+            self.assertTrue(self.cloned)
+            self.assertEqual(dest,self.tmpDir_name)
+            return self.merge_on_rv
 
         self.daemon.gitbackend.clone_to = clone_to
         self.daemon.gitbackend.merge_origin_on = merge_on
-        with tempdir:
+
+
+
+    def test_full_merge_calls_backend_does_proper_merge_after_clone(self,):
+        with self.tempdir:
             mut.full_merge(self.daemon)
-        self.assertTrue(merged)
+        self.assertTrue(self.merged)
+
+
+    def test_full_merge_schedules_pull_from_it_tempdor_if_merge_is_successful(self,):
+        schedule_pull = unittest.mock.MagicMock()
+        self.daemon.gitbackend.try_merge_update = schedule_pull
+        self.merge_on_rv = False
+        with self.tempdir:
+            mut.full_merge(self.daemon)
+
+        schedule_pull.assert_called_once_with(self.tmpDir_name)
+        self.assertTrue(self.merged)
